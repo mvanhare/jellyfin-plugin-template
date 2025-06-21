@@ -33,6 +33,14 @@
                         <div class="fieldDescription">Another Description</div>
                     </div>
                     <div>
+                    </div>
+                    <br />
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PinnedCollections">Pinned Collections (comma-separated names)</label>
+                        <textarea id="PinnedCollections" name="PinnedCollections" is="emby-textarea" class="emby-textarea"></textarea>
+                        <div class="fieldDescription">Enter the names of collections you want to pin to the home screen, separated by commas.</div>
+                    </div>
+                    <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
                         </button>
@@ -53,26 +61,76 @@
                         document.querySelector('#AnInteger').value = config.AnInteger;
                         document.querySelector('#TrueFalseSetting').checked = config.TrueFalseSetting;
                         document.querySelector('#AString').value = config.AString;
-                        Dashboard.hideLoadingMsg();
+
+                        // Load pinned collections
+                        ApiClient.getItems(Dashboard.getCurrentUserId(), {
+                            Recursive: true,
+                            IncludeItemTypes: "BoxSet", // Type for collections
+                            SortBy: "SortName",
+                            SortOrder: "Ascending"
+                        }).then(function (allCollectionsResult) {
+                            const allCollections = allCollectionsResult.Items;
+                            const pinnedNames = [];
+                            if (config.PinnedCollectionIds && config.PinnedCollectionIds.length > 0) {
+                                config.PinnedCollectionIds.forEach(function(pinnedId) {
+                                    const foundCollection = allCollections.find(c => c.Id === pinnedId);
+                                    if (foundCollection) {
+                                        pinnedNames.push(foundCollection.Name);
+                                    }
+                                });
+                            }
+                            document.querySelector('#PinnedCollections').value = pinnedNames.join(', ');
+                            Dashboard.hideLoadingMsg();
+                        }).catch(function() {
+                            // Handle error if fetching collections fails
+                            document.querySelector('#PinnedCollections').value = "Error loading collections.";
+                            Dashboard.hideLoadingMsg();
+                        });
                     });
                 });
 
             document.querySelector('#TemplateConfigForm')
                 .addEventListener('submit', function(e) {
-                Dashboard.showLoadingMsg();
-                ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
-                    config.Options = document.querySelector('#Options').value;
-                    config.AnInteger = document.querySelector('#AnInteger').value;
-                    config.TrueFalseSetting = document.querySelector('#TrueFalseSetting').checked;
-                    config.AString = document.querySelector('#AString').value;
-                    ApiClient.updatePluginConfiguration(TemplateConfig.pluginUniqueId, config).then(function (result) {
-                        Dashboard.processPluginConfigurationUpdateResult(result);
-                    });
-                });
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
 
-                e.preventDefault();
-                return false;
-            });
+                    ApiClient.getItems(Dashboard.getCurrentUserId(), { // Fetch all collections to map names to IDs
+                        Recursive: true,
+                        IncludeItemTypes: "BoxSet"
+                    }).then(function (allCollectionsResult) {
+                        const allCollections = allCollectionsResult.Items;
+                        const pinnedNamesStr = document.querySelector('#PinnedCollections').value.trim();
+                        const pinnedNamesArray = pinnedNamesStr ? pinnedNamesStr.split(',').map(name => name.trim()).filter(name => name) : [];
+                        const pinnedIds = [];
+
+                        pinnedNamesArray.forEach(function(name) {
+                            const foundCollection = allCollections.find(c => c.Name.toLowerCase() === name.toLowerCase());
+                            if (foundCollection) {
+                                pinnedIds.push(foundCollection.Id);
+                            } else {
+                                console.warn("Collection not found: " + name);
+                                // Optionally, inform the user about collections that couldn't be found
+                            }
+                        });
+
+                        ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
+                            config.Options = document.querySelector('#Options').value;
+                            config.AnInteger = document.querySelector('#AnInteger').value;
+                            config.TrueFalseSetting = document.querySelector('#TrueFalseSetting').checked;
+                            config.AString = document.querySelector('#AString').value;
+                            config.PinnedCollectionIds = pinnedIds; // Save the resolved IDs
+
+                            ApiClient.updatePluginConfiguration(TemplateConfig.pluginUniqueId, config).then(function (result) {
+                                Dashboard.processPluginConfigurationUpdateResult(result);
+                                // Potentially trigger pinning logic here if doing it on save
+                            });
+                        });
+                    }).catch(function() {
+                        Dashboard.hideLoadingMsg();
+                        alert("Error fetching collections to save pinned configuration.");
+                    });
+                    return false;
+                });
         </script>
     </div>
 </body>

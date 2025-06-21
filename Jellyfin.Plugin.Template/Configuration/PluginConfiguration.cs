@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using MediaBrowser.Model.Plugins;
 
 namespace Jellyfin.Plugin.Template.Configuration;
@@ -33,6 +35,7 @@ public class PluginConfiguration : BasePluginConfiguration
         TrueFalseSetting = true;
         AnInteger = 2;
         AString = "string";
+        PinnedCollectionIds = new List<Guid>();
     }
 
     /// <summary>
@@ -54,4 +57,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets an enum option.
     /// </summary>
     public SomeOptions Options { get; set; }
+
+    /// <summary>
+    /// Gets or sets the list of collection Guids to be pinned to the home screen.
+    /// </summary>
+    public List<Guid> PinnedCollectionIds { get; set; }
 }
